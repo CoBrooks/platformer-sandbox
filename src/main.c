@@ -9,6 +9,7 @@
 // g = 9.8m/s * 10px/m * 1s/60frames = 1.63px/frame
 #define GRAVITY 1.63f
 #define TOP_SPEED 8.5f
+#define COYOTE_FRAMES 5
 
 #define da_append(array, x) do { \
     if (array.len >= array.cap) { \
@@ -82,6 +83,9 @@ typedef struct {
 
     f32 speed;
     f32 jump_speed;
+
+    bool coyote_eligible;
+    u16  frames_spent_falling;
 } Player;
 
 /******************/
@@ -327,19 +331,29 @@ void update(void)
     // player update //
     player.ax = player.speed * input.h;
 
-    if (input.jump && player.grounded) player.vy = -player.jump_speed;
-
     player.vx = clamp(player.vx + player.ax, -TOP_SPEED, TOP_SPEED);
     actor_move_x(player.actor, player.vx, solids);
 
     // Without this, turning around feels "slippery" since the player is accelerating from a speed < 0
     if (sign(player.vx) != sign(input.h) || input.h == 0.0) player.vx = 0.0;
 
+    bool can_jump = player.grounded || (player.coyote_eligible && player.frames_spent_falling < COYOTE_FRAMES);
+    if (input.jump && can_jump) {
+        player.coyote_eligible = false;
+        player.vy = -player.jump_speed;
+    }
+
     player.vy = player.vy + player.ay;
     player.actor->riding = NULL;
     player.grounded = actor_move_y(player.actor, player.vy, solids);
 
-    if (player.grounded) player.vy = 0.0;
+    if (player.grounded) {
+        player.vy = 0.0;
+        player.coyote_eligible = true;
+        player.frames_spent_falling = 0;
+    } else {
+        player.frames_spent_falling += 1;
+    }
 }
 
 void draw(void)
